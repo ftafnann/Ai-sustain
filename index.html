@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="EcoSphere AI — AI-powered Climate Intelligence for Sustainable Futures. Smart agriculture, predictive analytics, and environmental intelligence platform."/>
+  <title>EcoSphere AI | Climate Intelligence Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Favicon inline SVG -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>"/>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+
+  <!-- LOCATION MODAL (first run) -->
+  <div id="locationModal" class="loc-modal-overlay">
+    <div class="loc-modal glass-card">
+      <div class="loc-modal-icon">🌍</div>
+      <h2 class="loc-modal-title">Welcome to EcoSphere AI</h2>
+      <p class="loc-modal-sub">Choose how to set your region for live weather, satellite data &amp; AI crop insights.</p>
+
+      <!-- AUTO DETECT -->
+      <button class="btn-gps" id="gpsBtn" onclick="autoDetectLocation()">
+        <span class="gps-pulse" id="gpsPulse"></span>
+        📡 Auto-Detect My Location
+      </button>
+      <div class="gps-status" id="gpsStatus"></div>
+
+      <!-- DIVIDER -->
+      <div class="loc-divider"><span>or enter manually</span></div>
+
+      <!-- MANUAL SEARCH -->
+      <div class="loc-search-wrap">
+        <input
+          type="text"
+          id="locationModalInput"
+          class="loc-modal-input"
+          placeholder="e.g. Bengaluru, Mysuru, Delhi, Pune..."
+          oninput="searchLocationSuggestions(this.value, 'modalSuggestions')"
+          onkeydown="if(event.key==='Enter') applyLocationFromModal()"
+          autocomplete="off"
+        />
+        <button class="btn-primary loc-modal-btn" id="locModalBtn" onclick="applyLocationFromModal()">🚀 Load</button>
+      </div>
+      <div id="modalSuggestions" class="loc-suggestions"></div>
+      <div class="loc-modal-hint">📡 Uses OpenStreetMap geocoding + OpenWeatherMap for live agricultural data.</div>
+    </div>
+  </div>
+
+  <!-- LOADING SCREEN -->
+  <div id="loadingScreen" class="hidden-init">
+    <div class="loader-logo">🌍 EcoSphere AI</div>
+    <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+    <div class="loader-text" id="loaderText">Fetching weather data...</div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toastContainer"></div>
+  <!-- NAVBAR -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-brand">
+      <div class="logo-icon">🌍</div>
+      <span class="logo-text">EcoSphere<span class="logo-ai">AI</span></span>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a href="#" class="nav-link active" data-page="hero"     onclick="showPage('hero');return false;">Home</a>
+      <a href="#" class="nav-link" data-page="dashboard"  onclick="showPage('dashboard');return false;">Dashboard</a>
+      <a href="#" class="nav-link" data-page="simulation" onclick="showPage('simulation');return false;">Simulation</a>
+      <a href="#" class="nav-link" data-page="farm"       onclick="showPage('farm');return false;">Virtual Farm</a>
+      <a href="#" class="nav-link" data-page="reservoir"  onclick="showPage('reservoir');return false;">Reservoir</a>
+      <a href="#" class="nav-link" data-page="advisor"    onclick="showPage('advisor');return false;">AI Advisor</a>
+      <a href="#" class="nav-link" data-page="satellite"  onclick="showPage('satellite');return false;">Satellite</a>
+      <a href="#" class="nav-link" data-page="alerts"     onclick="showPage('alerts');return false;">Alerts</a>
+      <a href="#" class="nav-link" data-page="analytics"  onclick="showPage('analytics');return false;">Analytics</a>
+      <a href="#" class="nav-link" data-page="future"     onclick="showPage('future');return false;">Future</a>
+    </div>
+    <div class="nav-actions">
+      <!-- LOCATION SEARCH BAR -->
+      <div class="nav-location-search" id="navLocationSearch">
+        <span class="nav-loc-icon">📍</span>
+        <input
+          type="text"
+          id="navLocationInput"
+          class="nav-loc-input"
+          placeholder="Search location..."
+          oninput="searchLocationSuggestions(this.value, 'navSuggestions')"
+          onkeydown="if(event.key==='Enter') applyLocationFromNav()"
+          onfocus="showNavSuggestions()"
+          autocomplete="off"
+        />
+        <button class="nav-loc-btn" onclick="applyLocationFromNav()" title="Search">🔍</button>
+        <div id="navSuggestions" class="loc-suggestions nav-loc-suggestions"></div>
+      </div>
+      <button class="btn-primary nav-cta" onclick="showPage('dashboard')">Launch Dashboard</button>
+    </div>
+    <button class="hamburger" id="hamburger" onclick="toggleNav()">☰</button>
+  </nav>
+
+  <!-- PAGE CONTAINER -->
+  <div id="appContainer">
+
+    <!-- ==================== HERO PAGE ==================== -->
+    <div class="page active" id="page-hero">
+      <div class="hero-bg">
+        <canvas id="heroCanvas"></canvas>
+        <div class="hero-overlay"></div>
+      </div>
+      <div class="hero-content">
+        <div class="hero-badge animate-fade-in">
+          <span class="badge-dot"></span>
+          AI-Powered Environmental Intelligence
+        </div>
+        <h1 class="hero-title animate-slide-up">
+          <span class="text-gradient">EcoSphere AI</span>
+        </h1>
+        <p class="hero-tagline animate-slide-up delay-1">
+          AI-powered Climate Intelligence for Sustainable Futures
+        </p>
+        <p class="hero-sub animate-fade-in delay-2">
+          Empowering farmers, institutions, and communities with predictive analytics,
+          satellite intelligence, and real-time environmental AI.
+        </p>
+        <div class="hero-buttons animate-fade-in delay-3">
+          <button class="btn-primary btn-xl" onclick="showPage('dashboard')">
+            🚀 Launch Dashboard
+          </button>
+          <button class="btn-glass btn-xl" onclick="showPage('simulation')">
+            🔬 Run AI Simulation
+          </button>
+        </div>
+        <div class="hero-stats animate-fade-in delay-4">
+          <div class="hero-stat">
+            <div class="stat-num" data-target="98">0</div>
+            <div class="stat-label">Accuracy %</div>
+          </div>
+          <div class="hero-stat">
+            <div class="stat-num" data-target="2400">0</div>
+            <div class="stat-label">Farms Monitored</div>
+          </div>
+          <div class="hero-stat">
+            <div class="stat-num" data-target="150">0</div>
+            <div class="stat-label">Districts Covered</div>
+          </div>
+          <div class="hero-stat">
+            <div class="stat-num" data-target="42">0</div>
+            <div class="stat-label">Crop Varieties</div>
+          </div>
+        </div>
+      </div>
+      <!-- Feature Cards -->
+      <div class="hero-features">
+        <div class="feature-card glass-card animate-fade-in delay-2" onclick="showPage('dashboard')">
+          <div class="feature-icon">🌤️</div>
+          <h3>Weather Intelligence</h3>
+          <p>Real-time climate analytics with drought & flood risk prediction</p>
+        </div>
+        <div class="feature-card glass-card animate-fade-in delay-3" onclick="showPage('simulation')">
+          <div class="feature-icon">🤖</div>
+          <h3>AI Simulation</h3>
+          <p>What-if analysis for crop yield, water usage & carbon impact</p>
+        </div>
+        <div class="feature-card glass-card animate-fade-in delay-4" onclick="showPage('satellite')">
+          <div class="feature-icon">🛰️</div>
+          <h3>Satellite Maps</h3>
+          <p>NDVI, drought zones & vegetation health from space</p>
+        </div>
+        <div class="feature-card glass-card animate-fade-in delay-5" onclick="showPage('advisor')">
+          <div class="feature-icon">💬</div>
+          <h3>AI Advisor</h3>
+          <p>Multilingual chatbot in English, Hindi & Kannada</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== DASHBOARD PAGE ==================== -->
+    <div class="page" id="page-dashboard">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🌿 Main Dashboard</h1>
+          <p class="page-sub" id="dashLocationSub">Enter a location to load live weather data</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-glass btn-reset-dash" onclick="resetDashboard()" title="Reset all dashboard data to defaults">
+            🔄 Reset Dashboard
+          </button>
+          <div class="live-badge"><span class="pulse-dot"></span>LIVE</div>
+          <div class="time-display" id="dashTime">--:--:--</div>
+        </div>
+      </div>
+
+      <!-- Weather Intelligence Panel -->
+      <section class="section-block">
+        <h2 class="section-title">🌤️ Weather Intelligence Panel</h2>
+        <div class="weather-grid">
+          <div class="weather-card glass-card">
+            <div class="weather-icon">🌡️</div>
+            <div class="weather-label">Temperature</div>
+            <div class="weather-value" id="w-temp">--°C</div>
+            <div class="weather-trend trend-up">↑ 2°C from yesterday</div>
+          </div>
+          <div class="weather-card glass-card">
+            <div class="weather-icon">💧</div>
+            <div class="weather-label">Humidity</div>
+            <div class="weather-value" id="w-hum">--%</div>
+            <div class="weather-trend trend-stable">→ Optimal range</div>
+          </div>
+          <div class="weather-card glass-card">
+            <div class="weather-icon">🌧️</div>
+            <div class="weather-label">Rainfall Probability</div>
+            <div class="weather-value" id="w-rain">--%</div>
+            <div class="weather-trend trend-down">↓ Low risk today</div>
+          </div>
+          <div class="weather-card glass-card">
+            <div class="weather-icon">💨</div>
+            <div class="weather-label">Wind Speed</div>
+            <div class="weather-value" id="w-wind">-- km/h</div>
+            <div class="weather-trend trend-stable">→ Gentle breeze</div>
+          </div>
+          <div class="weather-card glass-card risk-card">
+            <div class="weather-icon">🏜️</div>
+            <div class="weather-label">Drought Risk</div>
+            <div class="weather-value risk-medium" id="w-drought">Medium</div>
+            <div class="risk-bar"><div class="risk-fill risk-medium-fill" style="width:55%"></div></div>
+          </div>
+          <div class="weather-card glass-card risk-card">
+            <div class="weather-icon">🌊</div>
+            <div class="weather-label">Flood Risk</div>
+            <div class="weather-value risk-low" id="w-flood">Low</div>
+            <div class="risk-bar"><div class="risk-fill risk-low-fill" style="width:20%"></div></div>
+          </div>
+        </div>
+        <div class="chart-row">
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">7-Day Temperature Forecast</h3>
+            <canvas id="tempChart" height="120"></canvas>
+          </div>
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">Weekly Rainfall Prediction</h3>
+            <canvas id="rainChart" height="120"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI Prediction Panel -->
+      <section class="section-block">
+        <h2 class="section-title">🤖 AI Prediction Panel</h2>
+        <div class="prediction-grid">
+          <div class="pred-card glass-card">
+            <div class="pred-header">
+              <span class="pred-icon">🌾</span>
+              <span class="pred-label">Crop Yield Prediction</span>
+            </div>
+            <div class="pred-value">4.8 <span class="pred-unit">tons/ha</span></div>
+            <div class="pred-bar"><div class="pred-fill" style="width:75%; background: linear-gradient(90deg, #00ff88, #00cc66)"></div></div>
+            <div class="pred-note">↑ 12% above seasonal average</div>
+          </div>
+          <div class="pred-card glass-card">
+            <div class="pred-header">
+              <span class="pred-icon">💦</span>
+              <span class="pred-label">Water Consumption Forecast</span>
+            </div>
+            <div class="pred-value">285 <span class="pred-unit">mm</span></div>
+            <div class="pred-bar"><div class="pred-fill" style="width:60%; background: linear-gradient(90deg, #00aaff, #0066cc)"></div></div>
+            <div class="pred-note">→ Within optimal range</div>
+          </div>
+          <div class="pred-card glass-card">
+            <div class="pred-header">
+              <span class="pred-icon">🦠</span>
+              <span class="pred-label">Disease Risk Probability</span>
+            </div>
+            <div class="pred-value">23 <span class="pred-unit">%</span></div>
+            <div class="pred-bar"><div class="pred-fill" style="width:23%; background: linear-gradient(90deg, #ffaa00, #ff6600)"></div></div>
+            <div class="pred-note">⚠ Moderate — monitor closely</div>
+          </div>
+          <div class="pred-card glass-card">
+            <div class="pred-header">
+              <span class="pred-icon">☔</span>
+              <span class="pred-label">Rainfall Deficit</span>
+            </div>
+            <div class="pred-value">-42 <span class="pred-unit">mm</span></div>
+            <div class="pred-bar"><div class="pred-fill" style="width:42%; background: linear-gradient(90deg, #ff4444, #cc0000)"></div></div>
+            <div class="pred-note">↓ Supplemental irrigation needed</div>
+          </div>
+          <div class="pred-card glass-card">
+            <div class="pred-header">
+              <span class="pred-icon">♻️</span>
+              <span class="pred-label">Sustainability Trend</span>
+            </div>
+            <div class="pred-value">+8.3 <span class="pred-unit">pts</span></div>
+            <div class="pred-bar"><div class="pred-fill" style="width:83%; background: linear-gradient(90deg, #00ff88, #00aaff)"></div></div>
+            <div class="pred-note">↑ Improving steadily</div>
+          </div>
+        </div>
+        <div class="glass-card chart-card chart-full">
+          <h3 class="chart-title">AI Prediction Confidence — 30 Day Outlook</h3>
+          <canvas id="predChart" height="100"></canvas>
+        </div>
+      </section>
+
+      <!-- Sustainability Scores -->
+      <section class="section-block">
+        <h2 class="section-title">🌱 AI Sustainability Scores</h2>
+        <div class="scores-grid">
+          <div class="score-card glass-card">
+            <div class="circular-progress" data-value="78" data-color="#00aaff" id="cp-water">
+              <svg viewBox="0 0 100 100">
+                <circle class="cp-bg" cx="50" cy="50" r="40"/>
+                <circle class="cp-fill" cx="50" cy="50" r="40" id="cp-water-fill"/>
+              </svg>
+              <div class="cp-center">
+                <div class="cp-num">78</div>
+                <div class="cp-unit">/ 100</div>
+              </div>
+            </div>
+            <div class="score-label">💧 Water Efficiency</div>
+            <div class="score-status status-good">Good</div>
+          </div>
+          <div class="score-card glass-card">
+            <div class="circular-progress" data-value="85" data-color="#00ff88" id="cp-crop">
+              <svg viewBox="0 0 100 100">
+                <circle class="cp-bg" cx="50" cy="50" r="40"/>
+                <circle class="cp-fill" cx="50" cy="50" r="40" id="cp-crop-fill"/>
+              </svg>
+              <div class="cp-center">
+                <div class="cp-num">85</div>
+                <div class="cp-unit">/ 100</div>
+              </div>
+            </div>
+            <div class="score-label">🌾 Crop Health</div>
+            <div class="score-status status-excellent">Excellent</div>
+          </div>
+          <div class="score-card glass-card">
+            <div class="circular-progress" data-value="71" data-color="#aa00ff" id="cp-sust">
+              <svg viewBox="0 0 100 100">
+                <circle class="cp-bg" cx="50" cy="50" r="40"/>
+                <circle class="cp-fill" cx="50" cy="50" r="40" id="cp-sust-fill"/>
+              </svg>
+              <div class="cp-center">
+                <div class="cp-num">71</div>
+                <div class="cp-unit">/ 100</div>
+              </div>
+            </div>
+            <div class="score-label">♻️ Sustainability Index</div>
+            <div class="score-status status-good">Good</div>
+          </div>
+          <div class="score-card glass-card">
+            <div class="circular-progress" data-value="63" data-color="#ff6600" id="cp-carbon">
+              <svg viewBox="0 0 100 100">
+                <circle class="cp-bg" cx="50" cy="50" r="40"/>
+                <circle class="cp-fill" cx="50" cy="50" r="40" id="cp-carbon-fill"/>
+              </svg>
+              <div class="cp-center">
+                <div class="cp-num">63</div>
+                <div class="cp-unit">/ 100</div>
+              </div>
+            </div>
+            <div class="score-label">🌫️ Carbon Impact</div>
+            <div class="score-status status-moderate">Moderate</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROI Calculator -->
+      <section class="section-block">
+        <h2 class="section-title">💰 ROI Calculator</h2>
+        <div class="glass-card roi-card">
+          <div class="roi-grid">
+            <div class="roi-inputs">
+              <h3 class="roi-subtitle">Investment Parameters</h3>
+              <div class="form-group">
+                <label class="form-label">Principal / Invested Amount (₹)</label>
+                <input type="number" id="roiPrincipal" class="form-input" value="100000" placeholder="Enter amount e.g. 50000"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Crop Type</label>
+                <select id="roiCrop" class="form-input" onchange="calcROI()">
+                  <option value="rice">Rice (Paddy)</option>
+                  <option value="wheat">Wheat</option>
+                  <option value="sugarcane">Sugarcane</option>
+                  <option value="cotton">Cotton</option>
+                  <option value="maize">Maize</option>
+                  <option value="groundnut">Groundnut</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Farm Area (Hectares)</label>
+                <input type="number" id="roiArea" class="form-input" value="2" placeholder="Area in hectares e.g. 2.5"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Season</label>
+                <select id="roiSeason" class="form-input" onchange="calcROI()">
+                  <option value="kharif">Kharif (Jun–Nov)</option>
+                  <option value="rabi">Rabi (Nov–Apr)</option>
+                  <option value="zaid">Zaid (Apr–Jun)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">AI Optimization</label>
+                <select id="roiOpt" class="form-input" onchange="calcROI()">
+                  <option value="high">High (Full AI System)</option>
+                  <option value="medium">Medium (Partial AI)</option>
+                  <option value="none">None (Traditional)</option>
+                </select>
+              </div>
+              <div class="roi-btn-row">
+                <button class="btn-primary btn-full roi-calc-btn" onclick="calcROI()">🤖 Calculate AI-Projected ROI</button>
+                <button class="btn-glass btn-roi-reset" onclick="resetROI()" title="Reset ROI inputs">↺ Reset</button>
+              </div>
+            </div>
+            <div class="roi-results">
+              <h3 class="roi-subtitle">AI Projected Returns</h3>
+              <div class="roi-result-cards">
+                <div class="roi-result-item">
+                  <div class="roi-result-label">Expected Revenue</div>
+                  <div class="roi-result-value" id="roiRevenue">₹1,68,000</div>
+                </div>
+                <div class="roi-result-item">
+                  <div class="roi-result-label">Net Profit</div>
+                  <div class="roi-result-value green-val" id="roiProfit">₹68,000</div>
+                </div>
+                <div class="roi-result-item">
+                  <div class="roi-result-label">ROI Percentage</div>
+                  <div class="roi-result-value accent-val" id="roiPercent">68%</div>
+                </div>
+                <div class="roi-result-item">
+                  <div class="roi-result-label">Break-even Point</div>
+                  <div class="roi-result-value" id="roiBreakeven">3.2 months</div>
+                </div>
+                <div class="roi-result-item">
+                  <div class="roi-result-label">Water Savings</div>
+                  <div class="roi-result-value blue-val" id="roiWater">₹12,400</div>
+                </div>
+                <div class="roi-result-item">
+                  <div class="roi-result-label">Carbon Credits Earned</div>
+                  <div class="roi-result-value green-val" id="roiCarbon">₹8,200</div>
+                </div>
+              </div>
+              <div class="roi-chart-wrap">
+                <canvas id="roiChart" height="160"></canvas>
+              </div>
+              <div class="roi-ai-note" id="roiNote">
+                🤖 <strong>AI Insight:</strong> Enter your investment details above and click <em>Calculate</em> to see AI-projected returns for your farm.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recommendation Engine -->
+      <section class="section-block">
+        <h2 class="section-title">💡 AI Recommendation Engine</h2>
+        <div class="rec-grid">
+          <div class="rec-card glass-card rec-warning">
+            <div class="rec-icon">💧</div>
+            <div class="rec-content">
+              <div class="rec-title">Reduce Irrigation by 15%</div>
+              <div class="rec-desc">Soil moisture sensors indicate oversaturation in zones 2 & 3. AI predicts 72mm rainfall in next 5 days.</div>
+              <div class="rec-confidence">AI Confidence: 91%</div>
+            </div>
+          </div>
+          <div class="rec-card glass-card rec-info">
+            <div class="rec-icon">🌾</div>
+            <div class="rec-content">
+              <div class="rec-title">Switch to Drought-Resistant Crops</div>
+              <div class="rec-desc">Long-range forecast shows 30% below-normal monsoon. Recommend BPT-5204 or Samba Mahsuri varieties.</div>
+              <div class="rec-confidence">AI Confidence: 87%</div>
+            </div>
+          </div>
+          <div class="rec-card glass-card rec-danger">
+            <div class="rec-icon">🦠</div>
+            <div class="rec-content">
+              <div class="rec-title">High Disease Probability Detected</div>
+              <div class="rec-desc">Brown leaf spot detected in northern quadrant. Apply Carbendazim 50WP @ 1g/L within 48 hours.</div>
+              <div class="rec-confidence">AI Confidence: 94%</div>
+            </div>
+          </div>
+          <div class="rec-card glass-card rec-success">
+            <div class="rec-icon">♻️</div>
+            <div class="rec-content">
+              <div class="rec-title">Carbon Credit Opportunity</div>
+              <div class="rec-desc">Implementing zero-tillage this season could earn 4.2 carbon credits worth approx ₹8,400.</div>
+              <div class="rec-confidence">AI Confidence: 89%</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ==================== SIMULATION PAGE ==================== -->
+    <div class="page" id="page-simulation">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🔬 Virtual What-If Simulation</h1>
+          <p class="page-sub">Modify parameters and see AI-predicted outcomes in real time</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn-primary" onclick="runSimulation()">▶ Run Simulation</button>
+        </div>
+      </div>
+
+      <div class="sim-layout">
+        <!-- Controls Panel -->
+        <div class="sim-controls glass-card">
+          <h3 class="ctrl-title">⚙️ Simulation Parameters</h3>
+          <div class="sim-param">
+            <label class="param-label">☔ Rainfall <span id="sim-rain-val" class="param-val">65%</span></label>
+            <input type="range" id="sim-rain" min="0" max="100" value="65" class="param-slider" oninput="updateSimParam('rain', this.value)"/>
+          </div>
+          <div class="sim-param">
+            <label class="param-label">🌡️ Temperature <span id="sim-temp-val" class="param-val">28°C</span></label>
+            <input type="range" id="sim-temp" min="15" max="50" value="28" class="param-slider" oninput="updateSimParam('temp', this.value)"/>
+          </div>
+          <div class="sim-param">
+            <label class="param-label">💦 Irrigation Level <span id="sim-irr-val" class="param-val">50%</span></label>
+            <input type="range" id="sim-irr" min="0" max="100" value="50" class="param-slider" oninput="updateSimParam('irr', this.value)"/>
+          </div>
+          <div class="sim-param">
+            <label class="param-label">🧪 Fertilizer Usage <span id="sim-fert-val" class="param-val">40%</span></label>
+            <input type="range" id="sim-fert" min="0" max="100" value="40" class="param-slider" oninput="updateSimParam('fert', this.value)"/>
+          </div>
+          <div class="sim-param">
+            <label class="param-label">🌾 Crop Type</label>
+            <select id="sim-crop" class="form-input" onchange="updateSimParam('crop', this.value)">
+              <option value="rice">Rice</option>
+              <option value="wheat">Wheat</option>
+              <option value="cotton">Cotton</option>
+              <option value="sugarcane">Sugarcane</option>
+              <option value="maize">Maize</option>
+            </select>
+          </div>
+          <div class="sim-param">
+            <label class="param-label">📅 Time Horizon</label>
+            <select id="sim-horizon" class="form-input" onchange="updateSimParam('horizon', this.value)">
+              <option value="30">30 Days</option>
+              <option value="60">60 Days</option>
+              <option value="90">90 Days (Season)</option>
+              <option value="180">6 Months</option>
+            </select>
+          </div>
+          <button class="btn-primary btn-full mt-16" onclick="runSimulation()">🤖 Run AI Simulation</button>
+          <button class="btn-glass btn-full mt-8" onclick="resetSimulation()">↺ Reset to Default</button>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="sim-results">
+          <div class="sim-cards-grid">
+            <div class="sim-card glass-card">
+              <div class="sim-card-icon">🌿</div>
+              <div class="sim-card-label">Future Crop Health</div>
+              <div class="sim-card-value" id="sim-r-health">82%</div>
+              <div class="sim-card-bar"><div class="sim-bar-fill" id="sim-r-health-bar" style="width:82%; background: #00ff88"></div></div>
+            </div>
+            <div class="sim-card glass-card">
+              <div class="sim-card-icon">🌾</div>
+              <div class="sim-card-label">Expected Yield</div>
+              <div class="sim-card-value" id="sim-r-yield">4.6 t/ha</div>
+              <div class="sim-card-bar"><div class="sim-bar-fill" id="sim-r-yield-bar" style="width:76%; background: #00aaff"></div></div>
+            </div>
+            <div class="sim-card glass-card">
+              <div class="sim-card-icon">💧</div>
+              <div class="sim-card-label">Water Depletion</div>
+              <div class="sim-card-value" id="sim-r-water">-18%</div>
+              <div class="sim-card-bar"><div class="sim-bar-fill" id="sim-r-water-bar" style="width:38%; background: #ffaa00"></div></div>
+            </div>
+            <div class="sim-card glass-card">
+              <div class="sim-card-icon">🌫️</div>
+              <div class="sim-card-label">Carbon Impact</div>
+              <div class="sim-card-value" id="sim-r-carbon">+2.4 t</div>
+              <div class="sim-card-bar"><div class="sim-bar-fill" id="sim-r-carbon-bar" style="width:44%; background: #ff6600"></div></div>
+            </div>
+            <div class="sim-card glass-card">
+              <div class="sim-card-icon">💰</div>
+              <div class="sim-card-label">Economic Impact</div>
+              <div class="sim-card-value" id="sim-r-econ">+₹42K</div>
+              <div class="sim-card-bar"><div class="sim-bar-fill" id="sim-r-econ-bar" style="width:68%; background: #aa00ff"></div></div>
+            </div>
+          </div>
+
+          <div class="glass-card chart-card chart-full">
+            <h3 class="chart-title">AI Simulation Forecast — Multi-Variable Projection</h3>
+            <canvas id="simChart" height="120"></canvas>
+          </div>
+
+          <div class="sim-ai-rec glass-card">
+            <h3>🤖 AI Recommendations Based on Simulation</h3>
+            <div id="simRecommendations" class="sim-rec-list">
+              <div class="sim-rec-item">✅ Current parameters are within optimal range for rice cultivation.</div>
+              <div class="sim-rec-item">⚠️ Reducing temperature stress by 2°C could increase yield by 8%.</div>
+              <div class="sim-rec-item">💧 Drip irrigation recommended to reduce water depletion by 25%.</div>
+              <div class="sim-rec-item">🌿 Adding organic compost can improve carbon sequestration by 15%.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== VIRTUAL FARM PAGE ==================== -->
+    <div class="page" id="page-farm">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🚜 Virtual Smart Farm</h1>
+          <p class="page-sub">3D-style intelligent farm visualization with live AI insights</p>
+        </div>
+        <div class="header-actions">
+          <div class="live-badge"><span class="pulse-dot"></span>LIVE AI MONITORING</div>
+        </div>
+      </div>
+      <div class="farm-container">
+        <div class="farm-map glass-card">
+          <div class="farm-grid">
+            <div class="farm-section zone-a" onclick="selectZone('A')">
+              <div class="zone-label">Zone A</div>
+              <div class="zone-crop">🌾 Rice</div>
+              <div class="zone-status good">Healthy</div>
+              <div class="zone-soil">Soil: 72% moisture</div>
+            </div>
+            <div class="farm-section zone-b" onclick="selectZone('B')">
+              <div class="zone-label">Zone B</div>
+              <div class="zone-crop">🌽 Maize</div>
+              <div class="zone-status warning">Moderate</div>
+              <div class="zone-soil">Soil: 48% moisture</div>
+            </div>
+            <div class="farm-section zone-c" onclick="selectZone('C')">
+              <div class="zone-label">Zone C</div>
+              <div class="zone-crop">🌿 Vegetables</div>
+              <div class="zone-status good">Healthy</div>
+              <div class="zone-soil">Soil: 65% moisture</div>
+            </div>
+            <div class="farm-section zone-d" onclick="selectZone('D')">
+              <div class="zone-label">Zone D</div>
+              <div class="zone-crop">🌻 Sunflower</div>
+              <div class="zone-status danger">Stress</div>
+              <div class="zone-soil">Soil: 28% moisture</div>
+            </div>
+            <!-- Irrigation lines -->
+            <div class="irr-line irr-h irr-top"></div>
+            <div class="irr-line irr-h irr-mid"></div>
+            <div class="irr-line irr-v irr-left"></div>
+            <div class="irr-line irr-v irr-center"></div>
+            <div class="irr-line irr-v irr-right"></div>
+            <!-- Reservoir -->
+            <div class="reservoir-icon">
+              <div class="res-label">Reservoir</div>
+              <div class="res-level">💧 74%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zone Detail Panel -->
+        <div class="farm-panel glass-card">
+          <h3 class="panel-title">📊 Zone Details</h3>
+          <div id="zoneDetail">
+            <div class="zone-detail-card" id="zone-detail-content">
+              <div class="zone-detail-header">
+                <div class="zone-detail-icon">🌾</div>
+                <div>
+                  <div class="zone-detail-name" id="zd-name">Zone A — Rice</div>
+                  <div class="zone-detail-status status-good" id="zd-status">● Healthy</div>
+                </div>
+              </div>
+              <div class="zone-metrics">
+                <div class="zone-metric">
+                  <span class="zm-label">Soil Moisture</span>
+                  <span class="zm-val" id="zd-moisture">72%</span>
+                </div>
+                <div class="zone-metric">
+                  <span class="zm-label">Crop Stage</span>
+                  <span class="zm-val" id="zd-stage">Tillering</span>
+                </div>
+                <div class="zone-metric">
+                  <span class="zm-label">Disease Risk</span>
+                  <span class="zm-val" id="zd-disease">Low (12%)</span>
+                </div>
+                <div class="zone-metric">
+                  <span class="zm-label">Next Irrigation</span>
+                  <span class="zm-val" id="zd-irr">In 2 days</span>
+                </div>
+                <div class="zone-metric">
+                  <span class="zm-label">Expected Yield</span>
+                  <span class="zm-val" id="zd-yield">5.2 t/ha</span>
+                </div>
+                <div class="zone-metric">
+                  <span class="zm-label">Fertilizer Due</span>
+                  <span class="zm-val" id="zd-fert">Tomorrow</span>
+                </div>
+              </div>
+              <div class="zone-ai-insight">
+                <div class="ai-insight-label">🤖 AI Insight</div>
+                <div id="zd-insight">Zone A is performing excellently. Soil nutrients are balanced. Continue current irrigation schedule for optimal yield.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Floating AI Insights -->
+          <div class="ai-insights-feed">
+            <h4 class="feed-title">🔴 Live AI Alerts</h4>
+            <div class="ai-insight-item pulse-item">
+              <span class="ai-i-icon">⚠️</span>
+              <span>Zone D moisture critical — irrigation needed now</span>
+            </div>
+            <div class="ai-insight-item">
+              <span class="ai-i-icon">✅</span>
+              <span>Zone A rice at optimal growth stage</span>
+            </div>
+            <div class="ai-insight-item">
+              <span class="ai-i-icon">🌡️</span>
+              <span>Temperature stress risk in 3 days for Zone B</span>
+            </div>
+            <div class="ai-insight-item">
+              <span class="ai-i-icon">💧</span>
+              <span>Drip system efficiency: 94% — running optimally</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== RESERVOIR PAGE ==================== -->
+    <div class="page" id="page-reservoir">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">💧 Virtual Reservoir System</h1>
+          <p class="page-sub">Real-time water level monitoring and depletion forecasting</p>
+        </div>
+      </div>
+
+      <div class="reservoir-layout">
+        <div class="res-main glass-card">
+          <h3 class="chart-title">Main Reservoir — Current Status</h3>
+          <div class="water-tank-container">
+            <div class="water-tank">
+              <div class="water-fill" id="waterFill">
+                <div class="water-wave"></div>
+                <div class="water-wave wave2"></div>
+              </div>
+              <div class="tank-level-labels">
+                <span class="tank-100">100%</span>
+                <span class="tank-75">75%</span>
+                <span class="tank-50">50%</span>
+                <span class="tank-25">25%</span>
+                <span class="tank-0">0%</span>
+              </div>
+              <div class="tank-reading">
+                <div class="tank-pct">74%</div>
+                <div class="tank-vol">148,000 m³</div>
+              </div>
+            </div>
+          </div>
+          <div class="res-stats-row">
+            <div class="res-stat">
+              <div class="rs-val">148,000 m³</div>
+              <div class="rs-label">Current Volume</div>
+            </div>
+            <div class="res-stat">
+              <div class="rs-val rs-warning">74%</div>
+              <div class="rs-label">Fill Level</div>
+            </div>
+            <div class="res-stat">
+              <div class="rs-val rs-danger">38 days</div>
+              <div class="rs-label">Depletion Timeline</div>
+            </div>
+            <div class="res-stat">
+              <div class="rs-val">3,900 m³/day</div>
+              <div class="rs-label">Daily Usage</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="res-right">
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">60-Day Water Depletion Forecast</h3>
+            <canvas id="resChart" height="150"></canvas>
+          </div>
+          <div class="glass-card res-recs">
+            <h3 class="chart-title">💡 Water Optimization Suggestions</h3>
+            <div class="opt-list">
+              <div class="opt-item opt-high">
+                <span class="opt-badge">HIGH</span>
+                <div>
+                  <div class="opt-title">Activate Drip Irrigation in Zone D</div>
+                  <div class="opt-desc">Reduces daily consumption by 840 m³ — extends reservoir by 6 days</div>
+                </div>
+              </div>
+              <div class="opt-item opt-medium">
+                <span class="opt-badge opt-med-badge">MED</span>
+                <div>
+                  <div class="opt-title">Schedule Irrigation During Off-Peak Hours</div>
+                  <div class="opt-desc">Evaporation loss reduced by 22% — saves 380 m³/day</div>
+                </div>
+              </div>
+              <div class="opt-item opt-low">
+                <span class="opt-badge opt-low-badge">LOW</span>
+                <div>
+                  <div class="opt-title">Rainwater Harvesting Activation</div>
+                  <div class="opt-desc">Expected 8mm rainfall in 5 days — prepare collection channels</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass-card drought-timeline">
+            <h3 class="chart-title">🏜️ Drought Risk Timeline</h3>
+            <div class="timeline-bar-container">
+              <div class="timeline-label">Now</div>
+              <div class="timeline-bar">
+                <div class="tl-segment tl-safe" style="width:35%">Safe (14d)</div>
+                <div class="tl-segment tl-warning" style="width:30%">Warning (12d)</div>
+                <div class="tl-segment tl-danger" style="width:20%">Critical (8d)</div>
+                <div class="tl-segment tl-critical" style="width:15%">Emergency</div>
+              </div>
+              <div class="timeline-label">60 days</div>
+            </div>
+            <div class="drought-advice">
+              🤖 <strong>AI Recommendation:</strong> Implement water rationing from Day 27 to prevent emergency status. Contact district water board by Day 14.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== AI ADVISOR PAGE ==================== -->
+    <div class="page" id="page-advisor">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🤖 AI Multilingual Advisor</h1>
+          <p class="page-sub">Ask farming questions in English, Hindi, or Kannada</p>
+        </div>
+      </div>
+
+      <div class="advisor-layout">
+        <div class="advisor-sidebar glass-card">
+          <h3 class="advisor-sidebar-title">Language</h3>
+          <div class="lang-btns">
+            <button class="lang-btn active" id="lang-en" onclick="setLang('en')">🇬🇧 English</button>
+            <button class="lang-btn" id="lang-hi" onclick="setLang('hi')">🇮🇳 Hindi</button>
+            <button class="lang-btn" id="lang-kn" onclick="setLang('kn')">🌿 Kannada</button>
+          </div>
+          <h3 class="advisor-sidebar-title mt-16">Quick Topics</h3>
+          <div class="quick-topics">
+            <button class="topic-btn" onclick="quickQuestion('What crops should I grow this season?')">Crop Suggestions</button>
+            <button class="topic-btn" onclick="quickQuestion('How much should I irrigate my rice field?')">Irrigation Advice</button>
+            <button class="topic-btn" onclick="quickQuestion('What disease risks should I watch for?')">Disease Risks</button>
+            <button class="topic-btn" onclick="quickQuestion('How can I improve my sustainability score?')">Sustainability Tips</button>
+            <button class="topic-btn" onclick="quickQuestion('What is the rainfall forecast for next month?')">Rainfall Forecast</button>
+            <button class="topic-btn" onclick="quickQuestion('How do I earn carbon credits from my farm?')">Carbon Credits</button>
+          </div>
+          <div class="advisor-info">
+            <div class="ai-info-badge">🤖 Powered by</div>
+            <div class="ai-model-name">EcoSphere AI Engine</div>
+            <div class="ai-model-sub">+ Gemini / OpenAI Integration</div>
+          </div>
+        </div>
+
+        <div class="advisor-chat glass-card">
+          <div class="chat-header">
+            <div class="chat-avatar">🌿</div>
+            <div class="chat-meta">
+              <div class="chat-name">EcoBot — Agricultural AI Assistant</div>
+              <div class="chat-status"><span class="pulse-dot-green"></span> Online — Ready to help</div>
+            </div>
+          </div>
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg bot-msg">
+              <div class="msg-avatar">🌿</div>
+              <div class="msg-bubble">
+                Hello! I'm EcoBot, your AI agricultural advisor. I can help you with crop planning, irrigation advice, disease detection, and sustainability recommendations. What would you like to know?
+              </div>
+            </div>
+            <div class="chat-msg bot-msg">
+              <div class="msg-avatar">🌿</div>
+              <div class="msg-bubble">
+                📍 I've detected your location. Current conditions: Warm & partly cloudy. Moderate drought risk. Recommend monitoring soil moisture levels closely this week.
+              </div>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <input type="text" id="chatInput" class="chat-input" placeholder="Ask anything about farming, crops, weather..." onkeydown="if(event.key==='Enter') sendChat()"/>
+            <button class="btn-primary chat-send" onclick="sendChat()">Send ↗</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SATELLITE MAP PAGE ==================== -->
+    <div class="page" id="page-satellite">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🛰️ Satellite + Map Intelligence</h1>
+          <p class="page-sub">NDVI, drought zones, vegetation health and climate risk mapping</p>
+        </div>
+        <div class="header-actions">
+          <div class="map-layer-btns">
+            <button class="map-btn active" onclick="setMapLayer('ndvi',this)">NDVI</button>
+            <button class="map-btn" onclick="setMapLayer('drought',this)">Drought</button>
+            <button class="map-btn" onclick="setMapLayer('water',this)">Water Stress</button>
+            <button class="map-btn" onclick="setMapLayer('climate',this)">Climate Risk</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="satellite-layout">
+        <div class="map-container glass-card">
+          <div id="mainMap" style="height: 480px; border-radius: 12px;"></div>
+          <div class="map-overlay-info" id="mapOverlayInfo">
+            <div class="map-legend">
+              <div class="legend-title">NDVI — Vegetation Health</div>
+              <div class="legend-items">
+                <div class="legend-item"><span class="legend-dot" style="background:#006400"></span>High (0.7–1.0)</div>
+                <div class="legend-item"><span class="legend-dot" style="background:#90EE90"></span>Medium (0.3–0.7)</div>
+                <div class="legend-item"><span class="legend-dot" style="background:#FFD700"></span>Low (0.1–0.3)</div>
+                <div class="legend-item"><span class="legend-dot" style="background:#FF4500"></span>Bare Soil (&lt;0.1)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sat-insights">
+          <div class="glass-card sat-card">
+            <h3 class="chart-title">🌿 Vegetation Index</h3>
+            <canvas id="ndviChart" height="120"></canvas>
+          </div>
+          <div class="glass-card sat-zones">
+            <h3 class="chart-title">📍 Zone Analysis</h3>
+            <div class="zone-list">
+              <div class="zone-item zone-green">
+                <div class="zone-i-icon">🟢</div>
+                <div>
+                  <div class="zone-i-name">Northern Fields</div>
+                  <div class="zone-i-status">NDVI: 0.72 — Excellent</div>
+                </div>
+              </div>
+              <div class="zone-item zone-yellow">
+                <div class="zone-i-icon">🟡</div>
+                <div>
+                  <div class="zone-i-name">Southern Plateau</div>
+                  <div class="zone-i-status">NDVI: 0.41 — Moderate stress</div>
+                </div>
+              </div>
+              <div class="zone-item zone-red">
+                <div class="zone-i-icon">🔴</div>
+                <div>
+                  <div class="zone-i-name">Eastern Dryland</div>
+                  <div class="zone-i-status">NDVI: 0.18 — High drought risk</div>
+                </div>
+              </div>
+              <div class="zone-item zone-blue">
+                <div class="zone-i-icon">🔵</div>
+                <div>
+                  <div class="zone-i-name">Western Wetland</div>
+                  <div class="zone-i-status">Water stress: Low</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== ALERTS PAGE ==================== -->
+    <div class="page" id="page-alerts">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🚨 Alert System</h1>
+          <p class="page-sub">AI-powered notifications via SMS, WhatsApp, and Push</p>
+        </div>
+        <div class="header-actions">
+          <div class="alert-count-badge">
+            <span class="alert-dot"></span>
+            4 Active Alerts
+          </div>
+        </div>
+      </div>
+
+      <div class="alerts-layout">
+        <!-- Live Alerts -->
+        <div class="alerts-feed">
+          <h2 class="section-title">🔴 Live Alerts</h2>
+          <div class="alert-card glass-card alert-danger">
+            <div class="alert-header">
+              <div class="alert-type-badge badge-danger">🦠 DISEASE OUTBREAK</div>
+              <div class="alert-time">2 mins ago</div>
+            </div>
+            <div class="alert-title">Brown Leaf Spot Detected — Zone D</div>
+            <div class="alert-desc">AI image analysis detected early signs of Helminthosporium oryzae in rice field Zone D. Immediate fungicide application recommended.</div>
+            <div class="alert-actions">
+              <button class="btn-primary btn-sm">Take Action</button>
+              <button class="btn-glass btn-sm">View Details</button>
+            </div>
+          </div>
+          <div class="alert-card glass-card alert-warning">
+            <div class="alert-header">
+              <div class="alert-type-badge badge-warning">🌊 FLOOD WARNING</div>
+              <div class="alert-time">18 mins ago</div>
+            </div>
+            <div class="alert-title">Elevated Flood Risk — Northern Basin</div>
+            <div class="alert-desc">Upstream reservoir levels rising. 72mm rainfall predicted in 24hrs. Prepare drainage channels and move equipment to higher ground.</div>
+            <div class="alert-actions">
+              <button class="btn-primary btn-sm">Emergency Plan</button>
+              <button class="btn-glass btn-sm">Dismiss</button>
+            </div>
+          </div>
+          <div class="alert-card glass-card alert-orange">
+            <div class="alert-header">
+              <div class="alert-type-badge badge-orange">🏜️ DROUGHT WARNING</div>
+              <div class="alert-time">1 hr ago</div>
+            </div>
+            <div class="alert-title">Drought Conditions Developing — Zone B & C</div>
+            <div class="alert-desc">Soil moisture below critical threshold (30%). Reservoir at 74% — adequate for 38 days without rain. Begin conservation measures.</div>
+            <div class="alert-actions">
+              <button class="btn-primary btn-sm">Conservation Plan</button>
+              <button class="btn-glass btn-sm">Details</button>
+            </div>
+          </div>
+          <div class="alert-card glass-card alert-info">
+            <div class="alert-header">
+              <div class="alert-type-badge badge-info">💧 IRRIGATION ALERT</div>
+              <div class="alert-time">3 hrs ago</div>
+            </div>
+            <div class="alert-title">Scheduled Irrigation — Zone D Overdue</div>
+            <div class="alert-desc">Zone D automated irrigation was scheduled for 06:00. Soil moisture at 28%. Initiating emergency irrigation cycle now.</div>
+            <div class="alert-actions">
+              <button class="btn-primary btn-sm">Activate Now</button>
+              <button class="btn-glass btn-sm">Reschedule</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notification Channels -->
+        <div class="alert-channels">
+          <h2 class="section-title">📱 Notification Channels</h2>
+          <div class="channel-card glass-card">
+            <div class="channel-header">
+              <div class="channel-icon sms-icon">📱</div>
+              <div>
+                <div class="channel-name">SMS Alerts</div>
+                <div class="channel-status">Active — 3 sent today</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked/>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="sms-preview">
+              <div class="sms-bubble">
+                <div class="sms-from">EcoSphere AI</div>
+                <div class="sms-text">⚠ ALERT: Disease risk detected in your Zone D rice field. Apply fungicide immediately. Details: ecosphere.ai/alert/4521</div>
+                <div class="sms-time">Just now</div>
+              </div>
+            </div>
+          </div>
+          <div class="channel-card glass-card">
+            <div class="channel-header">
+              <div class="channel-icon whatsapp-icon">💬</div>
+              <div>
+                <div class="channel-name">WhatsApp Notifications</div>
+                <div class="channel-status">Active — 1 sent today</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked/>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="whatsapp-preview">
+              <div class="wp-header">
+                <div class="wp-avatar">🌿</div>
+                <div class="wp-name">EcoSphere AI Assistant</div>
+              </div>
+              <div class="wp-bubble">
+                🚨 *URGENT FARM ALERT*
+                Zone D: Brown Leaf Spot detected.
+                Confidence: 94%
+                Action: Apply Carbendazim 50WP @ 1g/L
+                📍 Your Location Farm
+                View full report: [Link]
+              </div>
+              <div class="wp-time">11:02 AM ✓✓</div>
+            </div>
+          </div>
+          <div class="channel-card glass-card">
+            <div class="channel-header">
+              <div class="channel-icon push-icon">🔔</div>
+              <div>
+                <div class="channel-name">Push Notifications</div>
+                <div class="channel-status">Active — 4 sent today</div>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" checked/>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="push-preview">
+              <div class="push-notif">
+                <div class="push-app-icon">🌍</div>
+                <div class="push-content">
+                  <div class="push-title">EcoSphere AI Alert</div>
+                  <div class="push-body">⚠ Flood risk elevated — Zone A. Check dashboard for action plan.</div>
+                </div>
+                <div class="push-time">now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== ANALYTICS PAGE ==================== -->
+    <div class="page" id="page-analytics">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">📊 Admin Analytics</h1>
+          <p class="page-sub">Historical trends, sustainability reports, and AI confidence metrics</p>
+        </div>
+        <div class="header-actions">
+          <select class="form-input" id="analyticsRange" onchange="updateAnalyticsCharts(this.value)">
+            <option value="7">Last 7 Days</option>
+            <option value="30" selected>Last 30 Days</option>
+            <option value="90">Last Quarter</option>
+            <option value="365">Last Year</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="analytics-grid-top">
+        <div class="ana-stat glass-card">
+          <div class="ana-stat-icon">🌾</div>
+          <div class="ana-stat-val">4.8 t/ha</div>
+          <div class="ana-stat-label">Avg Crop Yield</div>
+          <div class="ana-stat-change positive">↑ 14% vs last season</div>
+        </div>
+        <div class="ana-stat glass-card">
+          <div class="ana-stat-icon">💧</div>
+          <div class="ana-stat-val">-22%</div>
+          <div class="ana-stat-label">Water Saved</div>
+          <div class="ana-stat-change positive">↑ vs traditional farming</div>
+        </div>
+        <div class="ana-stat glass-card">
+          <div class="ana-stat-icon">🌫️</div>
+          <div class="ana-stat-val">-18%</div>
+          <div class="ana-stat-label">Carbon Reduction</div>
+          <div class="ana-stat-change positive">↑ Trending down</div>
+        </div>
+        <div class="ana-stat glass-card">
+          <div class="ana-stat-icon">🤖</div>
+          <div class="ana-stat-val">91.4%</div>
+          <div class="ana-stat-label">AI Accuracy</div>
+          <div class="ana-stat-change positive">↑ 3.2% improvement</div>
+        </div>
+        <div class="ana-stat glass-card">
+          <div class="ana-stat-icon">💰</div>
+          <div class="ana-stat-val">₹2.4L</div>
+          <div class="ana-stat-label">Avg Farmer Profit</div>
+          <div class="ana-stat-change positive">↑ 28% vs baseline</div>
+        </div>
+        <div class="ana-stat glass-card">
+          <div class="ana-stat-icon">🏆</div>
+          <div class="ana-stat-val">78/100</div>
+          <div class="ana-stat-label">Platform Health Score</div>
+          <div class="ana-stat-change neutral">→ Stable</div>
+        </div>
+      </div>
+
+      <div class="analytics-charts">
+        <div class="glass-card chart-card chart-full">
+          <h3 class="chart-title">Historical Crop Yield Trends (tons/ha)</h3>
+          <canvas id="yieldTrendChart" height="100"></canvas>
+        </div>
+        <div class="chart-row">
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">Water Usage vs Rainfall</h3>
+            <canvas id="waterTrendChart" height="130"></canvas>
+          </div>
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">Sustainability Score Over Time</h3>
+            <canvas id="sustTrendChart" height="130"></canvas>
+          </div>
+        </div>
+        <div class="chart-row">
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">AI Model Confidence Metrics</h3>
+            <canvas id="confChart" height="130"></canvas>
+          </div>
+          <div class="glass-card chart-card">
+            <h3 class="chart-title">Environmental Impact Distribution</h3>
+            <canvas id="impactChart" height="130"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== FUTURE FEATURES PAGE ==================== -->
+    <div class="page" id="page-future">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">🚀 Future-Ready Features</h1>
+          <p class="page-sub">Next-generation capabilities coming to EcoSphere AI</p>
+        </div>
+      </div>
+
+      <div class="future-hero-banner glass-card">
+        <div class="future-banner-content">
+          <h2>EcoSphere AI 2.0 — Roadmap</h2>
+          <p>The next evolution of climate-smart agriculture intelligence</p>
+        </div>
+        <div class="future-brand-logos">
+          <div class="brand-pill">EcoSphere AI</div>
+          <div class="brand-pill">AgroMind AI</div>
+          <div class="brand-pill">TerraPulse</div>
+          <div class="brand-pill">ClimateSync AI</div>
+        </div>
+      </div>
+
+      <div class="future-grid">
+        <div class="future-card glass-card">
+          <div class="future-icon">🛰️</div>
+          <div class="future-tag coming-soon">Q3 2025</div>
+          <h3 class="future-title">Satellite AI Engine</h3>
+          <p class="future-desc">Real-time NDVI, NDWI, and thermal imaging via Sentinel-2 and MODIS. AI-powered crop mapping at 10m resolution across entire districts.</p>
+          <div class="future-progress">
+            <div class="fp-bar"><div class="fp-fill" style="width:75%"></div></div>
+            <span>75% Complete</span>
+          </div>
+        </div>
+        <div class="future-card glass-card">
+          <div class="future-icon">🚁</div>
+          <div class="future-tag soon">Q4 2025</div>
+          <h3 class="future-title">Drone Integration</h3>
+          <p class="future-desc">Autonomous drone fleet management for precision spraying, field scouting, and multi-spectral crop health analysis.</p>
+          <div class="future-progress">
+            <div class="fp-bar"><div class="fp-fill" style="width:45%"></div></div>
+            <span>45% Complete</span>
+          </div>
+        </div>
+        <div class="future-card glass-card">
+          <div class="future-icon">💚</div>
+          <div class="future-tag planned">Q1 2026</div>
+          <h3 class="future-title">Carbon Credit Marketplace</h3>
+          <p class="future-desc">Blockchain-verified carbon sequestration tracking. Trade carbon credits directly on EcoSphere marketplace with real-time pricing.</p>
+          <div class="future-progress">
+            <div class="fp-bar"><div class="fp-fill" style="width:30%"></div></div>
+            <span>30% Complete</span>
+          </div>
+        </div>
+        <div class="future-card glass-card">
+          <div class="future-icon">💧</div>
+          <div class="future-tag planned">Q1 2026</div>
+          <h3 class="future-title">Smart Irrigation Automation</h3>
+          <p class="future-desc">IoT-connected soil sensors and actuators for fully automated precision irrigation. AI optimizes water delivery schedules 24/7.</p>
+          <div class="future-progress">
+            <div class="fp-bar"><div class="fp-fill" style="width:60%"></div></div>
+            <span>60% Complete</span>
+          </div>
+        </div>
+        <div class="future-card glass-card">
+          <div class="future-icon">🧬</div>
+          <div class="future-tag future">2026</div>
+          <h3 class="future-title">Genomic Crop Optimization</h3>
+          <p class="future-desc">AI-powered seed variety recommendations based on local soil genetics, climate history, and disease resistance profiling.</p>
+          <div class="future-progress">
+            <div class="fp-bar"><div class="fp-fill" style="width:15%"></div></div>
+            <span>15% Complete</span>
+          </div>
+        </div>
+        <div class="future-card glass-card">
+          <div class="future-icon">🌐</div>
+          <div class="future-tag future">2026</div>
+          <h3 class="future-title">Global Climate API</h3>
+          <p class="future-desc">Open API for third-party developers to integrate EcoSphere climate intelligence into their own agricultural platforms.</p>
+          <div class="future-progress">
+            <div class="fp-bar"><div class="fp-fill" style="width:20%"></div></div>
+            <span>20% Complete</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Brand Section -->
+      <div class="brand-section glass-card">
+        <h2 class="section-title">🎨 Platform Branding</h2>
+        <div class="brand-grid">
+          <div class="brand-card brand-ecosphere">
+            <div class="brand-logo">🌍 EcoSphere AI</div>
+            <div class="brand-tagline">"Breathing Intelligence into Every Farm"</div>
+          </div>
+          <div class="brand-card brand-agromind">
+            <div class="brand-logo">🧠 AgroMind AI</div>
+            <div class="brand-tagline">"The Brain Behind Your Harvest"</div>
+          </div>
+          <div class="brand-card brand-terrapulse">
+            <div class="brand-logo">🌱 TerraPulse</div>
+            <div class="brand-tagline">"Feel the Earth. Grow the Future."</div>
+          </div>
+          <div class="brand-card brand-climatesync">
+            <div class="brand-logo">⚡ ClimateSync AI</div>
+            <div class="brand-tagline">"In Sync with the Planet"</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end appContainer -->
+
+  <!-- FOOTER -->
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">🌍 EcoSphere AI</div>
+      <div class="footer-links">
+        <a href="#" class="footer-link" onclick="showPage('dashboard');return false;">Dashboard</a>
+        <a href="#" class="footer-link" onclick="showPage('simulation');return false;">Simulation</a>
+        <a href="#" class="footer-link" onclick="showPage('advisor');return false;">AI Advisor</a>
+        <a href="#" class="footer-link" onclick="showPage('analytics');return false;">Analytics</a>
+        <a href="#" class="footer-link" onclick="showPage('future');return false;">Roadmap</a>
+      </div>
+      <div class="footer-copy">© 2025 EcoSphere AI · Climate Intelligence Platform · v1.0.0</div>
+    </div>
+  </footer>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-item"><span class="status-dot"></span> AI Engine: Online</div>
+    <div class="status-item">🛰️ Satellite: Connected</div>
+    <div class="status-item" id="statusLocation">📍 Detecting location...</div>
+    <div class="status-item" id="statusTime">⏱ --:--</div>
+    <div class="status-item">🌐 API: Live</div>
+    <div class="status-item">🔒 Secure</div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
