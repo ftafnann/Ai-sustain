@@ -5,8 +5,29 @@
 'use strict';
 
 // ─── API KEYS ────────────────────────────────
-const OWM_API_KEY = '8b9ffe9df56803eec5bb89004b819126';
-const OWM_BASE    = 'https://api.openweathermap.org/data/2.5';
+const OWM_API_KEY  = '8b9ffe9df56803eec5bb89004b819126';
+const OWM_BASE     = 'https://api.openweathermap.org/data/2.5';
+
+// ─── BACKEND CONFIG ───────────────────────
+const BACKEND_BASE = 'http://localhost:3001/api';
+
+// Unique session ID per browser tab (persisted in sessionStorage)
+const SESSION_ID = (() => {
+  let sid = sessionStorage.getItem('eco_session');
+  if (!sid) { sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8); sessionStorage.setItem('eco_session', sid); }
+  return sid;
+})();
+
+// Silent backend POST helper — never blocks UI on backend failure
+async function postToBackend(endpoint, data) {
+  try {
+    await fetch(`${BACKEND_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: SESSION_ID, ...data })
+    });
+  } catch (e) { /* backend offline — silent fail, UI still works */ }
+}
 
 // ─── STATE ───────────────────────────────────
 const state = {
@@ -92,12 +113,13 @@ function showPage(pageId) {
 
   // Lazy init page-specific stuff
   setTimeout(() => {
-    if (pageId === 'dashboard') initDashboard();
+    if (pageId === 'dashboard')  initDashboard();
     if (pageId === 'simulation') initSimulation();
-    if (pageId === 'reservoir') initReservoir();
-    if (pageId === 'analytics') initAnalytics();
-    if (pageId === 'satellite') initMap();
-    if (pageId === 'satellite') initNDVIChart();
+    if (pageId === 'reservoir')  initReservoir();
+    if (pageId === 'analytics')  initAnalytics();
+    if (pageId === 'satellite')  initMap();
+    if (pageId === 'satellite')  initNDVIChart();
+    if (pageId === 'advisor')    loadHermsHistory();
   }, 100);
 
   // Close mobile nav
@@ -395,7 +417,7 @@ function geocodeAndApply(query) {
     });
 }
 
-function applyLocation(lat, lon, displayName) {
+function applyLocation(lat, lon, displayName, source = 'search') {
   state.location = { lat, lon, name: displayName };
 
   // Update nav input
@@ -420,6 +442,9 @@ function applyLocation(lat, lon, displayName) {
   if (ls) { ls.classList.remove('hidden-init'); ls.classList.add('showing'); }
   if (lt) lt.textContent = `Loading weather for ${displayName}...`;
 
+  // 📤 Store location change in MongoDB (every change = new entry)
+  postToBackend('/location', { displayName, lat, lon, source });
+
   // Fetch real weather
   fetchWeather(lat, lon);
 
@@ -428,7 +453,7 @@ function applyLocation(lat, lon, displayName) {
     state.map.setView([lat, lon], 10);
     refreshMapMarkers(lat, lon, displayName);
   } else {
-    mapInitialized = false; // allow re-init
+    mapInitialized = false;
   }
 
   showToast('📍 Location Set', `Now showing data for: ${displayName}`, 'success');
@@ -599,6 +624,16 @@ function fetchWeather(lat, lon) {
     // ── Store for other modules
     state.weather = { temp, hum, wind, rainProb, pressure, desc, uvVal, aqi, droughtRisk, floodRisk };
 
+    // 📤 Store weather in MongoDB
+    postToBackend('/weather', {
+      location: state.location?.name || '',
+      lat:      state.location?.lat,
+      lon:      state.location?.lon,
+      current:  { temp, feelsLike, humidity: hum, wind, pressure, rainProb, description: desc, uvVal, aqi },
+      risks:    { droughtRisk, floodRisk },
+      forecast7: { days: labels, maxTemps, minTemps, rains }
+    });
+
     // ── Hide loader
     const ls = document.getElementById('loadingScreen');
     if (ls) { ls.classList.add('hidden'); ls.classList.remove('showing'); }
@@ -686,6 +721,18 @@ function computeCropIntelligence(w) {
 
   // ── Store for other modules
   state.cropIntelligence = { suitable, unsuitable, diseaseRisk, irrAdvice, uvNote, aqiNote };
+
+  // 📤 Store crop intelligence in MongoDB
+  postToBackend('/crop-intelligence', {
+    location:       state.location?.name || '',
+    lat:            state.location?.lat,
+    lon:            state.location?.lon,
+    weatherSummary: { temp, hum, wind, rainProb, desc, droughtRisk, floodRisk },
+    suitableCrops:  suitable.map(c => ({ name: c.name, emoji: c.emoji, rainNeed: c.rainNeed })),
+    unsuitableCrops:unsuitable.map(c => ({ name: c.name, emoji: c.emoji })),
+    diseaseRisks:   diseaseRisk.map(d => ({ disease: d.d, risk: d.risk, action: d.action })),
+    irrAdvice, uvNote, aqiNote
+  });
 }
 
 // ─── UPDATE ZONE DATA FROM REAL WEATHER ──────
@@ -1333,64 +1380,72 @@ function sendChat() {
   addChatMessage(msg, 'user');
   input.value = '';
 
-  // Typing indicator
+  // Typing indicator with Herms branding
   const typingId = addTypingIndicator();
 
-  setTimeout(() => {
+  // Build context to send to Herms
+  const context = {
+    location:   state.location?.name || '',
+    lat:        state.location?.lat,
+    lon:        state.location?.lon,
+    weather:    state.weather || null,
+    activeCrop: document.getElementById('roiCrop')?.value || ''
+  };
+
+  // Call Herms via backend
+  fetch(`${BACKEND_BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: SESSION_ID,
+      message:   msg,
+      language:  state.currentLang || 'en',
+      context
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
     removeTypingIndicator(typingId);
-    const response = generateAIResponse(msg);
-    addChatMessage(response, 'bot');
-  }, 1200 + Math.random() * 800);
+    addChatMessage(data.response || 'Herms is thinking...', 'bot');
+  })
+  .catch(() => {
+    removeTypingIndicator(typingId);
+    addChatMessage('🌿 Herms is offline. Make sure the backend is running: open backend/start.bat', 'bot');
+  });
 }
 
-function addChatMessage(text, type) {
-  const container = document.getElementById('chatMessages');
-  const div = document.createElement('div');
-  div.className = `chat-msg ${type}-msg`;
-  div.innerHTML = `
-    <div class="msg-avatar">${type === 'bot' ? '🌿' : '👤'}</div>
-    <div class="msg-bubble">${text}</div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
+// Load Herms conversation history from MongoDB
+async function loadHermsHistory() {
+  try {
+    const container = document.getElementById('chatMessages');
+    if (!container) return;
 
-function addTypingIndicator() {
-  const container = document.getElementById('chatMessages');
-  const id = 'typing-' + Date.now();
-  const div = document.createElement('div');
-  div.id = id;
-  div.className = 'chat-msg bot-msg';
-  div.innerHTML = `<div class="msg-avatar">🌿</div><div class="msg-bubble" style="color:#8faab8">🤖 Analyzing with EcoSphere AI...</div>`;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-  return id;
-}
+    const res  = await fetch(`${BACKEND_BASE}/chat/history/${SESSION_ID}?limit=30`);
+    const msgs = await res.json();
 
-function removeTypingIndicator(id) {
-  const el = document.getElementById(id);
-  if (el) el.remove();
+    if (!Array.isArray(msgs) || msgs.length === 0) {
+      // First time — Herms greeting
+      addChatMessage('🌿 Hi! I\'m **Herms**, your EcoSphere agricultural AI advisor. Ask me anything about crops, irrigation, disease risk, or market prices!', 'bot');
+      return;
+    }
+
+    // Render loaded history
+    msgs.forEach(m => addChatMessage(m.message, m.role === 'herms' ? 'bot' : 'user'));
+    const container2 = document.getElementById('chatMessages');
+    if (container2) container2.scrollTop = container2.scrollHeight;
+  } catch {
+    addChatMessage('🌿 Hi! I\'m Herms, your EcoSphere AI advisor. How can I help you today?', 'bot');
+  }
 }
 
 function generateAIResponse(msg) {
+  // Legacy fallback — no longer called when backend is running
   const lang = state.currentLang;
   const m = msg.toLowerCase();
   const res = CHAT_RESPONSES[lang] || CHAT_RESPONSES.en;
-
-  if (m.includes('crop') || m.includes('grow') || m.includes('plant') || m.includes('seed'))
-    return res.crop || res.default[0];
-  if (m.includes('irrigat') || m.includes('water') || m.includes('moisture'))
-    return res.irrigation || res.default[1];
-  if (m.includes('disease') || m.includes('pest') || m.includes('blight') || m.includes('fungal'))
-    return res.disease || res.default[2];
-  if (m.includes('sustain') || m.includes('eco') || m.includes('green') || m.includes('carbon'))
-    return res.sustainability || res.default[0];
-  if (m.includes('rain') || m.includes('forecast') || m.includes('weather') || m.includes('monsoon'))
-    return res.rainfall || res.default[1];
-  if (m.includes('credit') || m.includes('market') || m.includes('earn') || m.includes('money'))
-    return res.carbon || res.default[2];
-
-  // Default random
+  if (m.includes('crop') || m.includes('grow') || m.includes('plant') || m.includes('seed')) return res.crop || res.default[0];
+  if (m.includes('irrigat') || m.includes('water') || m.includes('moisture')) return res.irrigation || res.default[1];
+  if (m.includes('disease') || m.includes('pest') || m.includes('blight')) return res.disease || res.default[2];
   return res.default[Math.floor(Math.random() * res.default.length)];
 }
 
